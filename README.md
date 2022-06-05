@@ -8,7 +8,7 @@ STA Identity Connector Framework is built using the connId Framework to develop,
 <br>
 <br>
 <p align="center">
-  <img src="https://github.com/ThalesGroup/sta-idm-framework/edit/master/STA-sync.drawio.png" width="850">
+  <img src="https://github.com/ThalesGroup/sta-idm-framework/blob/master/STA-sync.drawio.png" width="850">
 </p>
 <br>
 <br>
@@ -30,10 +30,10 @@ Capabilities and Features
 
 The connector is meant to be compatible with the following IDM Services
 
-1.ConnId
-2.Evolveum Midpoint
-3.CzechIdM Identity Manager
-4.Open ICF
+1. ConnId
+2. Evolveum Midpoint
+3. CzechIdM Identity Manager
+4. Open ICF
 
 
 How to use?
