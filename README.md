@@ -1,7 +1,7 @@
 # sta-idm-connector
 Identity Connector for STA over REST API(s)
 
-STA Identity Connctor Framework is built using the connId Framework to develop, manage and run along side with other identity connectors for by direcectional syncronization with other target systems. 
+STA Identity Connector Framework is built using the connId Framework to develop, manage and run along side with other identity connectors for by directional syncronization with other target systems. 
 
 
 <br><br><br><br>
@@ -28,7 +28,7 @@ Capabilities and Features
 | Password               | NO            |                                             |
 
 
-The connector is ment to be compatible with the following IDM Services
+The connector is meant to be compatible with the following IDM Services
 
 1.ConnId
 2.Evolveum Midpoint
@@ -60,5 +60,5 @@ Based on the IDM service version being used, use the right version into this con
 (adjust the polygon version with the version that you use for connector parent)
 
 Limitations
-1. Password syncronization is not directly available.
-2. Serach is based on userid and email id only. 
+1. Password synchronization is not directly available.
+2. Search is based on userid and email id only. 
