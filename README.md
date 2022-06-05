@@ -8,7 +8,7 @@ STA Identity Connctor Framework is built using the connId Framework to develop, 
 <br>
 <br>
 <p align="center">
-  <img src="http://10.124.100.55/sdas/sta-idm-connectors/blob/main/STA-sync.drawio.png" width="850">
+  <img src="https://github.com/ThalesGroup/STA-IDM-Framework/edit/master/STA-sync.drawio.png" width="850">
 </p>
 <br>
 <br>
