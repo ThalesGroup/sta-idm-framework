@@ -44,6 +44,7 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.DefaultProxyRoutePlanner;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.ssl.SSLContextBuilder;
+import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
 import com.evolveum.polygon.rest.AbstractRestConnector;
 import org.identityconnectors.common.Base64;
@@ -74,7 +75,7 @@ import java.util.*;
  *
  */
 @ConnectorClass(displayNameKey = "connector.example.rest.display", configurationClass = STARestConfiguration.class)
-public class STARestConnector extends AbstractRestConnector<STARestConfiguration> implements TestOp, SchemaOp, SearchOp<staFilter> {
+public class STARestConnector extends AbstractRestConnector<STARestConfiguration> implements PoolableConnector, TestOp, SchemaOp, CreateOp, DeleteOp, UpdateOp, SearchOp<staFilter> {
 
 	private static final Log LOG = Log.getLog(STARestConnector.class);
 
@@ -89,6 +90,10 @@ public class STARestConnector extends AbstractRestConnector<STARestConfiguration
 	private static final String ATTR_FIRSTNAME = "firstName";
 	private static final String ATTR_LASTNAME = "lastName";
 	private static final String ATTR_MAIL = "email";
+	private static final String ATTR_STATUS = "isActive";
+
+	public static final String STATUS_ENABLED = "true";
+	public static final String STATUS_BLOCKED = "false";
 
 	private static final String CONTENT_TYPE = "application/json";
 
@@ -107,6 +112,12 @@ public class STARestConnector extends AbstractRestConnector<STARestConfiguration
 		CloseableHttpResponse response = execute(request);
 
 		processResponseErrors(response);
+	}
+
+	@Override
+	public void checkAlive() {
+		test();
+		// TODO quicker test?
 	}
 
 	@Override
@@ -197,7 +208,7 @@ public class STARestConnector extends AbstractRestConnector<STARestConfiguration
 					}
 					// find all
 					else {
-						int pageSize = 5 ; // hardocoded value getConfiguration().getPageSize();
+						int pageSize = getConfiguration().getPageSize();
 						int page = 0;
 						while (true) {
 							pageing = processPaging(page, pageSize);
@@ -217,9 +228,115 @@ public class STARestConnector extends AbstractRestConnector<STARestConfiguration
 		}
 	}
 
+	@Override
+	public Uid create(ObjectClass objectClass, Set<Attribute> attributes, OperationOptions operationOptions) {
+		if (objectClass.is(ObjectClass.ACCOUNT_NAME)) {    // __ACCOUNT__
+			return createOrUpdateUser(null, attributes);
+		} else {
+			// not found
+			throw new UnsupportedOperationException("Unsupported object class " + objectClass);
+		}
+	}
+
+	@Override
+	public void delete(ObjectClass objectClass, Uid uid, OperationOptions operationOptions) {
+		try {
+			if (objectClass.is(ObjectClass.ACCOUNT_NAME)) {
+				/*if (getConfiguration().getUserDeleteDisabled()) {
+					//diable user TO DO
+				} else				 */
+				{
+					LOG.ok("delete user, Uid: {0}", uid);
+					HttpDelete request = new HttpDelete(getConfiguration().getServiceAddress() + USER + "/" + uid.getUidValue());
+					callRequest(request, false);
+				}
+			} else {
+				// not found
+				throw new UnsupportedOperationException("Unsupported object class " + objectClass);
+			}
+		} catch (IOException e) {
+			throw new ConnectorIOException(e.getMessage(), e);
+		}
+	}
+
+	@Override
+	public Uid update(ObjectClass objectClass, Uid uid, Set<Attribute> attributes, OperationOptions operationOptions) {
+		if (objectClass.is(ObjectClass.ACCOUNT_NAME)) {
+			return createOrUpdateUser(uid, attributes);
+		} else {
+			// not found
+			throw new UnsupportedOperationException("Unsupported object class " + objectClass);
+		}
+	}
+
+	private Uid createOrUpdateUser(Uid uid, Set<Attribute> attributes) {
+		LOG.ok("createOrUpdateUser, Uid: {0}, attributes: {1}", uid, attributes);
+		if (attributes == null || attributes.isEmpty()) {
+			LOG.ok("request ignored, empty attributes");
+			return uid;
+		}
+		boolean create = uid == null;
+		JSONObject jo = new JSONObject();
+		String mail = getStringAttr(attributes, ATTR_MAIL);
+		if (create && StringUtil.isBlank(mail)) {
+			throw new InvalidAttributeValueException("Missing mandatory attribute " + ATTR_MAIL);
+		}
+		if (mail != null) {
+			jo.put(ATTR_MAIL, mail);
+		}
+
+		String name = getStringAttr(attributes, Name.NAME);
+		if (create && StringUtil.isBlank(name)) {
+			throw new InvalidAttributeValueException("Missing mandatory attribute " + Name.NAME);
+		}
+		if (name != null) {
+			jo.put(ATTR_UNAME, name);
+		}
+
+		Boolean enable = getAttr(attributes, OperationalAttributes.ENABLE_NAME, Boolean.class);
+
+		if (enable != null) {
+			jo.put(ATTR_STATUS, enable ? STATUS_ENABLED : STATUS_BLOCKED);
+		}
+
+		putFieldIfExists(attributes, ATTR_MAIL, jo);
+		putFieldIfExists(attributes, ATTR_SCHEMAVERSION, jo);
+		putFieldIfExists(attributes, ATTR_UNAME, jo);
+		putFieldIfExists(attributes, ATTR_FIRSTNAME, jo);
+		putFieldIfExists(attributes, ATTR_LASTNAME, jo);
+
+		LOG.ok("user request (without password): {0}", jo.toString());
+
+		try {
+
+
+			HttpEntityEnclosingRequestBase request;
+			if (create) {
+				request = new HttpPost(getConfiguration().getServiceAddress() + BASE + getConfiguration().gettenantcode() + USER );
+			} else {
+				// update
+				request = new HttpPatch(getConfiguration().getServiceAddress() + BASE + getConfiguration().gettenantcode() + USER  + "/" + uid.getUidValue() + "?isuid=true" );
+			}
+			JSONObject jores = callRequest(request, jo);
+
+			String newUid = jores.getString(ATTR_UID);
+			LOG.error("response UID: {0}", jores);
+			return new Uid(newUid);
+		} catch (IOException e) {
+			throw new ConnectorIOException(e.getMessage(), e);
+		}
+	}
+
+	private void putFieldIfExists(Set<Attribute> attributes, String fieldName, JSONObject jo) {
+		String fieldValue = getStringAttr(attributes, fieldName);
+		if (fieldValue != null) {
+			jo.put(fieldName, fieldValue);
+		}
+	}
+
 	private String processPageOptions(OperationOptions options) {
 		if (options != null) {
-			Integer pageSize = 5;
+			Integer pageSize = getConfiguration().getPageSize();
 			Integer pagedResultsOffset = 0;
 			if (pageSize != null && pagedResultsOffset != null) {
 
@@ -228,6 +345,7 @@ public class STARestConnector extends AbstractRestConnector<STARestConfiguration
 		}
 		return "";
 	}
+
 	public String processPaging(int page, int pageSize) {
 		StringBuilder queryBuilder = new StringBuilder();
 		LOG.ok("creating paging with page: {0}, pageSize: {1}", page, pageSize);
@@ -240,7 +358,7 @@ public class STARestConnector extends AbstractRestConnector<STARestConfiguration
 	public boolean handleUsers(HttpGet request, ResultsHandler handler, OperationOptions options, boolean findAll) throws IOException {
 
 		JSONArray users = callRequest(request);
-		//LOG.ok("Number of users: {0}, pageResultsOffset: {1}, pageSize: {2} ", users.length(), options == null ? "null" : options.getPagedResultsOffset(), options == null ? "null" : 5);
+		LOG.ok("Number of users: {0}, pageResultsOffset: {1}, pageSize: {2} ", users.length(), options == null ? "null" : options.getPagedResultsOffset(), options == null ? "null" : getConfiguration().getPageSize());
 
 		for (int i = 0; i < users.length(); i++) {
 			if (i % 10 == 0) {
@@ -268,12 +386,13 @@ public class STARestConnector extends AbstractRestConnector<STARestConfiguration
 		}
 
 		// last page exceed
-		if (5 > users.length()) {
+		if (getConfiguration().getPageSize() > users.length()) {
 			return true;
 		}
 		// need next page
 		return false;
 	}
+
 	protected JSONArray callRequest(HttpRequestBase request) throws IOException {
 		LOG.ok("request URI: {0}", request.getURI());
 		request.setHeader("Content-Type", CONTENT_TYPE);
@@ -308,6 +427,26 @@ public class STARestConnector extends AbstractRestConnector<STARestConfiguration
 			closeResponse(response);
 			return null;
 		}
+		String result = EntityUtils.toString(response.getEntity());
+		LOG.error("response body: {0}", result);
+		closeResponse(response);
+		return new JSONObject(result);
+	}
+
+	protected JSONObject callRequest(HttpEntityEnclosingRequestBase request, JSONObject jo) throws IOException {
+		// don't log request here - password field !!!
+		LOG.error("request URI: {0}", request.getURI());
+		request.setHeader("Content-Type", CONTENT_TYPE);
+
+		authHeader(request);
+
+
+		HttpEntity entity = new ByteArrayEntity(jo.toString().getBytes("UTF-8"));
+		request.setEntity(entity);
+
+		CloseableHttpResponse response = execute(request);
+		LOG.error("response: {0}", response);
+
 		String result = EntityUtils.toString(response.getEntity());
 		LOG.error("response body: {0}", result);
 		closeResponse(response);

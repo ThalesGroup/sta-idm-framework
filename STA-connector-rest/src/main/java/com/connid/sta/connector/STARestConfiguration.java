@@ -29,6 +29,11 @@ public class STARestConfiguration extends AbstractRestConfiguration {
 
     private String tenantcode = null;
 
+    private String group = null;
+
+    private int pageSize = 20;
+
+
     @ConfigurationProperty(displayMessageKey = "Tenant Short code",
             helpMessageKey = "Tenant Short code")
     public String gettenantcode() {
@@ -48,6 +53,26 @@ public class STARestConfiguration extends AbstractRestConfiguration {
     public void setapikey(String apikey) {
         this.apikey = apikey;
     }
+
+    @ConfigurationProperty(displayMessageKey = "STA group Name",
+            helpMessageKey = "STA Tenant Key")
+    public String getgroupname() {
+        return group;
+    }
+
+    public void getgroupname(String group) {
+        this.group = group;
+    }
+
+    @ConfigurationProperty(displayMessageKey = "config-pageSize", helpMessageKey = "")
+    public int getPageSize() {
+        return pageSize;
+    }
+
+    public void setPageSize(int pageSize) {
+        this.pageSize = pageSize;
+    }
+
 
 
 }
